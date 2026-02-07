@@ -2,43 +2,81 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <title>住みやすさマップ</title>
-
-  <!-- Leaflet -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
-
+  <title>住みやすさマップ Pro - 階層版</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    body { margin: 0; font-family: sans-serif; }
+    body { margin: 0; font-family: "Helvetica Neue", Arial, sans-serif; background: #f0f0f0; }
     #map { height: 100vh; width: 100vw; }
 
+    /* コントロールパネルのスタイル */
     .control {
       position: absolute;
-      top: 10px;
-      left: 10px;
-      background: white;
-      padding: 10px;
-      border-radius: 6px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      top: 10px; left: 10px;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 15px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
       z-index: 1000;
+      width: 240px;
+      max-height: 90vh;
+      overflow-y: auto;
     }
-    .control label {
-      display: block;
-      margin-bottom: 6px;
-      cursor: pointer;
+    h2 { font-size: 16px; margin: 0 0 10px 0; color: #2c3e50; border-bottom: 2px solid #3498db; }
+    .category-group { margin-bottom: 15px; }
+    .category-title { font-size: 13px; font-weight: bold; color: #555; margin-bottom: 5px; background: #eee; padding: 2px 5px; border-radius: 3px; }
+    
+    label { display: flex; align-items: center; font-size: 12px; margin: 4px 0; cursor: pointer; color: #333; }
+    input[type="checkbox"] { margin-right: 8px; }
+    
+    .dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+
+    #refresh-btn {
+      width: 100%; padding: 12px;
+      background: #3498db; color: white;
+      border: none; border-radius: 6px;
+      cursor: pointer; font-weight: bold;
+      transition: 0.3s; margin-top: 5px;
     }
+    #refresh-btn:hover { background: #2980b9; }
+    #refresh-btn:disabled { background: #bdc3c7; cursor: wait; }
+    #loading { font-size: 12px; color: #e67e22; text-align: center; margin-top: 5px; display: none; font-weight: bold; }
   </style>
 </head>
 <body>
 
-<!-- チェックボックス -->
 <div class="control">
-  <label><input type="checkbox" checked onchange="toggleLayer('muji')"> 無印良品</label>
-  <label><input type="checkbox" checked onchange="toggleLayer('uniqlo')"> ユニクロ</label>
-  <label><input type="checkbox" checked onchange="toggleLayer('mcd')"> マクドナルド</label>
-  <label><input type="checkbox" checked onchange="toggleLayer('station')"> 駅</label>
+  <h2>住みやすさ設定</h2>
+  
+  <div id="controls-container">
+    <div class="category-group">
+      <div class="category-title">コンビニ</div>
+      <label><input type="checkbox" checked data-key="seven"> <span class="dot" style="background:#27ae60"></span> セブンイレブン</label>
+      <label><input type="checkbox" checked data-key="lawson"> <span class="dot" style="background:#3498db"></span> ローソン</label>
+      <label><input type="checkbox" checked data-key="famima"> <span class="dot" style="background:#2ecc71"></span> ファミマ</label>
+    </div>
+
+    <div class="category-group">
+      <div class="category-title">チェーン店</div>
+      <label><input type="checkbox" checked data-key="mcd"> <span class="dot" style="background:#e74c3c"></span> マクドナルド</label>
+      <label><input type="checkbox" checked data-key="matsuya"> <span class="dot" style="background:#f1c40f"></span> 松屋</label>
+      <label><input type="checkbox" checked data-key="saizeriya"> <span class="dot" style="background:#a52a2a"></span> サイゼリヤ</label>
+    </div>
+
+    <div class="category-group">
+      <div class="category-title">生活</div>
+      <label><input type="checkbox" checked data-key="muji"> <span class="dot" style="background:#800000"></span> 無印良品</label>
+      <label><input type="checkbox" checked data-key="bookoff"> <span class="dot" style="background:#ffcc00"></span> ブックオフ</label>
+    </div>
+
+    <div class="category-group">
+      <div class="category-title">公共施設</div>
+      <label><input type="checkbox" checked data-key="library"> <span class="dot" style="background:#9b59b6"></span> 図書館</label>
+      <label><input type="checkbox" checked data-key="park"> <span class="dot" style="background:#2ecc71"></span> 公園</label>
+    </div>
+  </div>
+  
+  <button id="refresh-btn">エリア内を再検索</button>
+  <div id="loading">データ取得中...</div>
 </div>
 
 <div id="map"></div>
@@ -46,45 +84,98 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-  // ① 地図初期化（東京駅）
-  const map = L.map('map').setView([35.681236, 139.767125], 14);
-
+  const map = L.map('map').setView([35.681236, 139.767125], 15);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors'
   }).addTo(map);
 
-  // ② レイヤー（カテゴリごと）
-  const layers = {
-    muji: L.layerGroup().addTo(map),
-    uniqlo: L.layerGroup().addTo(map),
-    mcd: L.layerGroup().addTo(map),
-    station: L.layerGroup().addTo(map)
+  // カテゴリ設定
+  const config = {
+    seven:    { color: "#27ae60", q: 'node["brand:en"="7-Eleven"]' },
+    lawson:   { color: "#3498db", q: 'node["brand:en"="Lawson"]' },
+    famima:   { color: "#2ecc71", q: 'node["brand:en"="FamilyMart"]' },
+    mcd:      { color: "#e74c3c", q: 'node["brand:en"="McDonald\'s"]' },
+    matsuya:  { color: "#f1c40f", q: 'node["brand:en"="Matsuya"]' },
+    saizeriya:{ color: "#a52a2a", q: 'node["brand:en"="Saizeriya"]' },
+    muji:     { color: "#800000", q: 'node["brand:en"="MUJI"]' },
+    bookoff:  { color: "#ffcc00", q: 'node["brand:en"="BOOKOFF"]' },
+    library:  { color: "#9b59b6", q: 'node["amenity"="library"]' },
+    park:     { color: "#2ecc71", q: 'nwr["leisure"="park"]' }
   };
 
-  // ③ カラー付きマーカー（circle）
-  function addMarker(layer, lat, lng, name, color) {
-    L.circleMarker([lat, lng], {
-      radius: 8,
-      color: color,
-      fillColor: color,
-      fillOpacity: 0.9
-    }).bindPopup(name).addTo(layer);
-  }
+  const layers = {};
+  Object.keys(config).forEach(key => {
+    layers[key] = L.layerGroup().addTo(map);
+  });
 
-  // ④ データ（例）
-  addMarker(layers.muji, 35.6737, 139.7630, "無印良品 有楽町", "green");
-  addMarker(layers.uniqlo, 35.6717, 139.7650, "ユニクロ 銀座", "red");
-  addMarker(layers.mcd, 35.6810, 139.7680, "マクドナルド 東京駅店", "orange");
-  addMarker(layers.station, 35.681236, 139.767125, "東京駅", "blue");
+  // チェックボックスのイベント
+  document.querySelectorAll('.control input').forEach(input => {
+    input.addEventListener('change', (e) => {
+      const key = e.target.getAttribute('data-key');
+      if (e.target.checked) map.addLayer(layers[key]);
+      else map.removeLayer(layers[key]);
+    });
+  });
 
-  // ⑤ 表示ON/OFF
-  function toggleLayer(key) {
-    if (map.hasLayer(layers[key])) {
-      map.removeLayer(layers[key]);
-    } else {
-      map.addLayer(layers[key]);
+  async function searchArea() {
+    const refreshBtn = document.getElementById('refresh-btn');
+    const loading = document.getElementById('loading');
+    refreshBtn.disabled = true;
+    loading.style.display = 'block';
+
+    Object.values(layers).forEach(l => l.clearLayers());
+
+    const b = map.getBounds();
+    const bbox = `${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
+
+    // クエリを結合して1回で投げる（高速化）
+    let fullQuery = `[out:json][timeout:30];(`;
+    Object.keys(config).forEach(key => {
+      fullQuery += `${config[key].q}(${bbox});`;
+    });
+    fullQuery += `); out center;`;
+
+    try {
+      const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(fullQuery)}`);
+      const data = await res.json();
+
+      data.elements.forEach(el => {
+        const lat = el.lat || (el.center && el.center.lat);
+        const lon = el.lon || (el.center && el.center.lon);
+        if (!lat || !lon) return;
+
+        // タグからどのカテゴリか判定
+        const tags = JSON.stringify(el.tags).toLowerCase();
+        let targetKey = "";
+        
+        // 簡易的なマッチング判定
+        if (tags.includes("7-eleven")) targetKey = "seven";
+        else if (tags.includes("lawson")) targetKey = "lawson";
+        else if (tags.includes("familymart")) targetKey = "famima";
+        else if (tags.includes("mcdonald")) targetKey = "mcd";
+        else if (tags.includes("matsuya")) targetKey = "matsuya";
+        else if (tags.includes("saizeriya")) targetKey = "saizeriya";
+        else if (tags.includes("muji")) targetKey = "muji";
+        else if (tags.includes("bookoff")) targetKey = "bookoff";
+        else if (el.tags.amenity === "library") targetKey = "library";
+        else if (el.tags.leisure === "park") targetKey = "park";
+
+        if (targetKey) {
+          L.circleMarker([lat, lon], {
+            radius: 8, color: config[targetKey].color, fillColor: config[targetKey].color, fillOpacity: 0.7
+          }).bindPopup(`<strong>${el.tags.name || targetKey}</strong>`).addTo(layers[targetKey]);
+        }
+      });
+    } catch (err) {
+      console.error(err);
     }
+
+    refreshBtn.disabled = false;
+    loading.style.display = 'none';
   }
+
+  document.getElementById('refresh-btn').onclick = searchArea;
+  searchArea(); // 初回起動
 </script>
 
 </body>
