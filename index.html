@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <title>住みやすさマップ Full-Responsive</title>
+  <title>住みやすさマップ Stable Pro</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
@@ -12,11 +12,9 @@
       --bg-panel: rgba(255, 255, 255, 0.98);
       --panel-width: 300px;
     }
-
     body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: "Helvetica Neue", Arial, sans-serif; }
     #map { height: 100%; width: 100%; z-index: 1; background: #ddd; }
 
-    /* ハンバーガーボタン (PC/スマホ共通) */
     .menu-trigger {
       position: absolute; top: 15px; left: 15px; z-index: 2000;
       width: 45px; height: 45px; background: var(--primary);
@@ -25,11 +23,9 @@
       box-shadow: 0 2px 10px rgba(0,0,0,0.2);
     }
 
-    /* 検索バー (PC/スマホ共通) */
     .search-wrapper {
       position: absolute; top: 15px; left: 75px; z-index: 1500;
-      width: calc(100% - 90px); max-width: 400px;
-      display: flex; gap: 5px;
+      width: calc(100% - 90px); max-width: 400px; display: flex; gap: 5px;
     }
     #station-query {
       flex: 1; padding: 12px 15px; border-radius: 25px; border: 1px solid #ccc;
@@ -40,7 +36,6 @@
       border: none; border-radius: 20px; font-weight: bold; cursor: pointer;
     }
 
-    /* 設定パネル (スライド式) */
     .control-panel {
       position: absolute; top: 0; left: 0; height: 100%;
       width: var(--panel-width); background: var(--bg-panel);
@@ -73,7 +68,6 @@
     #refresh-btn { width: 100%; padding: 15px; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
     #loading { text-align: center; color: #e67e22; font-size: 12px; margin-bottom: 5px; display: none; }
 
-    /* 背景オーバーレイ */
     .overlay {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(0,0,0,0.4); z-index: 2500; display: none;
@@ -173,23 +167,23 @@
     };
   });
 
+  // ユニクロ検索を nwr (Node/Way/Relation) かつ正規表現 ~"ユニクロ|UNIQLO",i に強化
   const config = {
-    seven: { color: "#2e7d32", q: 'node["brand:en"="7-Eleven"]' },
-    lawson: { color: "#1976d2", q: 'node["brand:en"="Lawson"]' },
-    famima: { color: "#66bb6a", q: 'node["brand:en"="FamilyMart"]' },
-    mcd: { color: "#d32f2f", q: 'node["brand:en"="McDonald\'s"]' },
-    matsuya: { color: "#f57c00", q: 'node["brand:en"="Matsuya"]' },
-    saizeriya: { color: "#bf360c", q: 'node["brand:en"="Saizeriya"]' },
-    muji: { color: "#4a148c", q: 'node["brand:en"="MUJI"]' },
-    uniqlo: { color: "#ff0000", q: 'node["brand:en"="Uniqlo"]' },
-    bookoff: { color: "#311b92", q: 'node["brand:en"="BOOKOFF"]' },
-    library: { color: "#00796b", q: 'node["amenity"="library"]' },
+    seven: { color: "#2e7d32", q: 'nwr["brand"~"7-Eleven|セブン",i]' },
+    lawson: { color: "#1976d2", q: 'nwr["brand"~"Lawson|ローソン",i]' },
+    famima: { color: "#66bb6a", q: 'nwr["brand"~"FamilyMart|ファミマ",i]' },
+    mcd: { color: "#d32f2f", q: 'nwr["brand"~"McDonald|マクドナルド",i]' },
+    matsuya: { color: "#f57c00", q: 'nwr["brand"~"Matsuya|松屋",i]' },
+    saizeriya: { color: "#bf360c", q: 'nwr["brand"~"Saizeriya|サイゼリヤ",i]' },
+    muji: { color: "#4a148c", q: 'nwr["brand"~"MUJI|無印良品",i]' },
+    uniqlo: { color: "#ff0000", q: 'nwr["brand"~"Uniqlo|ユニクロ",i]' },
+    bookoff: { color: "#311b92", q: 'nwr["brand"~"BOOKOFF|ブックオフ",i]' },
+    library: { color: "#00796b", q: 'nwr["amenity"="library"]' },
     park: { color: "#4db6ac", q: 'nwr["leisure"="park"]' }
   };
   const layers = {};
   Object.keys(config).forEach(k => layers[k] = L.layerGroup());
 
-  // 初期チェック状態の反映
   function initLayers() {
     document.querySelectorAll('.child-check').forEach(c => {
       if(c.checked) map.addLayer(layers[c.dataset.key]);
@@ -226,8 +220,7 @@
       const cat = e.target.dataset.cat;
       if(e.target.checked) map.addLayer(layers[key]); else map.removeLayer(layers[key]);
       const parent = document.querySelector(`.parent-check[data-cat="${cat}"]`);
-      const allCheck = Array.from(document.querySelectorAll(`.child-check[data-cat="${cat}"]`)).every(s => s.checked);
-      parent.checked = allCheck;
+      parent.checked = Array.from(document.querySelectorAll(`.child-check[data-cat="${cat}"]`)).every(s => s.checked);
     };
   });
 
@@ -249,20 +242,23 @@
         const lon = el.lon || (el.center && el.center.lon);
         if(!lat || !lon) return;
         let key = "";
-        const t = JSON.stringify(el.tags).toLowerCase();
-        if(t.includes("7-eleven")) key = "seven";
-        else if(t.includes("lawson")) key = "lawson";
-        else if(t.includes("familymart")) key = "famima";
-        else if(t.includes("mcdonald")) key = "mcd";
-        else if(t.includes("matsuya")) key = "matsuya";
-        else if(t.includes("saizeriya")) key = "saizeriya";
-        else if(t.includes("muji")) key = "muji";
-        else if(t.includes("uniqlo")) key = "uniqlo";
-        else if(t.includes("bookoff")) key = "bookoff";
-        else if(el.tags.amenity === "library") key = "library";
-        else if(el.tags.leisure === "park") key = "park";
+        const tags = el.tags || {};
+        const tagText = JSON.stringify(tags).toLowerCase();
+        
+        if(tagText.includes("7-eleven") || tagText.includes("セブン")) key = "seven";
+        else if(tagText.includes("lawson") || tagText.includes("ローソン")) key = "lawson";
+        else if(tagText.includes("familymart") || tagText.includes("ファミマ")) key = "famima";
+        else if(tagText.includes("mcdonald") || tagText.includes("マクドナルド")) key = "mcd";
+        else if(tagText.includes("matsuya") || tagText.includes("松屋")) key = "matsuya";
+        else if(tagText.includes("saizeriya") || tagText.includes("サイゼリヤ")) key = "saizeriya";
+        else if(tagText.includes("muji") || tagText.includes("無印良品")) key = "muji";
+        else if(tagText.includes("uniqlo") || tagText.includes("ユニクロ")) key = "uniqlo";
+        else if(tagText.includes("bookoff") || tagText.includes("ブックオフ")) key = "bookoff";
+        else if(tags.amenity === "library") key = "library";
+        else if(tags.leisure === "park") key = "park";
+
         if(key) {
-          L.circleMarker([lat, lon], { radius: 10, color: config[key].color, fillColor: config[key].color, fillOpacity: 0.8, weight: 2 }).bindPopup(el.tags.name || key).addTo(layers[key]);
+          L.circleMarker([lat, lon], { radius: 10, color: config[key].color, fillColor: config[key].color, fillOpacity: 0.8, weight: 2 }).bindPopup(tags.name || key).addTo(layers[key]);
         }
       });
     } catch(e) {}
@@ -270,7 +266,7 @@
   }
 
   document.getElementById('refresh-btn').onclick = searchArea;
-  initLayers(); // 初期レイヤー設定
+  initLayers();
   searchArea();
 </script>
 </body>
