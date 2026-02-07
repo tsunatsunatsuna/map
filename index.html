@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <title>住みやすさマップ</title>
+
+  <!-- Leaflet -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+
+  <style>
+    body { margin: 0; font-family: sans-serif; }
+    #map { height: 100vh; width: 100vw; }
+
+    .control {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: white;
+      padding: 10px;
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      z-index: 1000;
+    }
+    .control label {
+      display: block;
+      margin-bottom: 6px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<!-- チェックボックス -->
+<div class="control">
+  <label><input type="checkbox" checked onchange="toggleLayer('muji')"> 無印良品</label>
+  <label><input type="checkbox" checked onchange="toggleLayer('uniqlo')"> ユニクロ</label>
+  <label><input type="checkbox" checked onchange="toggleLayer('mcd')"> マクドナルド</label>
+  <label><input type="checkbox" checked onchange="toggleLayer('station')"> 駅</label>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+  // ① 地図初期化（東京駅）
+  const map = L.map('map').setView([35.681236, 139.767125], 14);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  // ② レイヤー（カテゴリごと）
+  const layers = {
+    muji: L.layerGroup().addTo(map),
+    uniqlo: L.layerGroup().addTo(map),
+    mcd: L.layerGroup().addTo(map),
+    station: L.layerGroup().addTo(map)
+  };
+
+  // ③ カラー付きマーカー（circle）
+  function addMarker(layer, lat, lng, name, color) {
+    L.circleMarker([lat, lng], {
+      radius: 8,
+      color: color,
+      fillColor: color,
+      fillOpacity: 0.9
+    }).bindPopup(name).addTo(layer);
+  }
+
+  // ④ データ（例）
+  addMarker(layers.muji, 35.6737, 139.7630, "無印良品 有楽町", "green");
+  addMarker(layers.uniqlo, 35.6717, 139.7650, "ユニクロ 銀座", "red");
+  addMarker(layers.mcd, 35.6810, 139.7680, "マクドナルド 東京駅店", "orange");
+  addMarker(layers.station, 35.681236, 139.767125, "東京駅", "blue");
+
+  // ⑤ 表示ON/OFF
+  function toggleLayer(key) {
+    if (map.hasLayer(layers[key])) {
+      map.removeLayer(layers[key]);
+    } else {
+      map.addLayer(layers[key]);
+    }
+  }
+</script>
+
+</body>
+</html>
