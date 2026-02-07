@@ -1,180 +1,174 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8" />
-  <title>住みやすさマップ Pro+ (Stable V2)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <style>
-    :root {
-      --primary: #3498db;
-      --bg-panel: rgba(255, 255, 255, 0.98);
-      --text-main: #2c3e50;
-    }
-    
-    /* 画面全体の固定 */
-    html, body { 
-      position: fixed; 
-      width: 100%; 
-      height: 100%; 
-      margin: 0; 
-      padding: 0; 
-      overflow: hidden; 
-      touch-action: none; /* ブラウザ独自のジェスチャーを制限 */
-    }
+<meta charset="utf-8" />
+<title>住みやすさマップ Pro+ (Responsive)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-    #map { 
-      height: 100%; 
-      width: 100%; 
-      z-index: 1; 
-      background: #eee;
-    }
+<style>
+:root {
+  --primary:#3498db;
+  --bg-panel:rgba(255,255,255,0.98);
+  --text-main:#2c3e50;
+}
 
-    /* UIレイヤー（地図の上に重なる要素をまとめる） */
-    .ui-layer {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      pointer-events: none; /* 下の地図を操作できるようにする */
-      z-index: 1000;
-    }
-    .ui-layer > * { pointer-events: auto; } /* 中身は操作可能に */
+/* 全画面固定 */
+html,body{
+  width:100%;height:100%;margin:0;overflow:hidden;
+}
+#map{width:100%;height:100%;}
 
-    /* 検索バー - スマホでのズレを防止 */
-    .search-container {
-      position: absolute;
-      top: 15px; left: 50%;
-      transform: translateX(-50%);
-      display: flex; gap: 8px;
-      width: 90%; max-width: 320px;
-    }
-    #station-query {
-      flex: 1; padding: 12px 15px;
-      border-radius: 30px; border: 1px solid #ccc;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-      font-size: 16px !important; /* 絶対に16px */
-      background: white;
-      -webkit-appearance: none; /* iOSのデフォルトスタイル解除 */
-    }
-    #search-btn {
-      padding: 0 18px; background: var(--primary);
-      color: white; border: none; border-radius: 25px;
-      font-weight: bold; font-size: 14px;
-    }
+/* UIレイヤ */
+.ui-layer{
+  position:absolute;top:0;left:0;width:100%;height:100%;
+  pointer-events:none;z-index:1000;
+}
+.ui-layer>*{pointer-events:auto}
 
-    /* 設定パネル - スマホで検索バーの下に来るように調整 */
-    .control-panel {
-      position: absolute;
-      top: 80px; left: 10px;
-      background: var(--bg-panel);
-      width: calc(100% - 20px); max-width: 280px;
-      max-height: 60vh;
-      border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-      display: flex; flex-direction: column;
-    }
-    
-    /* PC表示の時は横に並べる */
-    @media (min-width: 768px) {
-      .search-container { top: 15px; left: 310px; transform: none; }
-      .control-panel { top: 15px; left: 15px; max-height: 90vh; }
-    }
+/* 検索バー */
+.search-container{
+  position:absolute;
+  top:15px;left:50%;
+  transform:translateX(-50%);
+  display:flex;gap:8px;
+  width:90%;max-width:320px;
+}
+#station-query{
+  flex:1;padding:12px 15px;border-radius:30px;
+  border:1px solid #ccc;font-size:16px;
+}
+#search-btn{
+  padding:0 18px;border-radius:25px;
+  background:var(--primary);color:#fff;border:none;
+}
 
-    .panel-header { padding: 12px 15px; border-bottom: 1px solid #eee; }
-    .panel-header h2 { margin: 0 0 8px 0; font-size: 16px; }
-    
-    .theme-selector { display: flex; gap: 4px; }
-    .theme-btn {
-      flex: 1; padding: 8px 0; font-size: 11px; border: 1px solid #ddd;
-      border-radius: 4px; background: white; cursor: pointer;
-    }
-    .theme-btn.active { background: var(--primary); color: white; }
+/* ハンバーガーボタン */
+.menu-btn{
+  position:absolute;top:15px;left:15px;
+  width:44px;height:44px;
+  border:none;border-radius:10px;
+  background:var(--primary);color:#fff;
+  font-size:22px;display:none;
+}
 
-    .panel-content { padding: 10px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+/* パネル */
+.control-panel{
+  position:fixed;top:80px;left:10px;
+  width:280px;max-height:85vh;
+  background:var(--bg-panel);
+  border-radius:12px;
+  box-shadow:0 4px 20px rgba(0,0,0,.15);
+  display:flex;flex-direction:column;
+  transition:transform .3s ease;
+}
 
-    details { margin-bottom: 5px; border: 1px solid #eee; border-radius: 6px; }
-    summary { padding: 10px; background: #f8f9fa; font-weight: bold; font-size: 13px; list-style: none; }
-    summary::-webkit-details-marker { display: none; }
-    summary input { margin-right: 8px; }
-    
-    .child-list { padding: 8px 10px; background: white; }
-    .child-label { display: flex; align-items: center; font-size: 13px; margin: 8px 0; }
-    .dot { height: 8px; width: 8px; border-radius: 50%; margin-right: 8px; }
+/* パネル中身 */
+.panel-header{padding:12px;border-bottom:1px solid #eee}
+.panel-content{padding:10px;overflow-y:auto}
+.panel-footer{padding:10px;border-top:1px solid #eee}
 
-    .panel-footer { padding: 10px; border-top: 1px solid #eee; }
-    #refresh-btn {
-      width: 100%; padding: 14px; background: var(--primary);
-      color: white; border: none; border-radius: 8px; font-weight: bold;
-    }
-    #loading { font-size: 11px; color: #e67e22; text-align: center; display: none; margin-bottom: 5px; }
-  </style>
+details{margin-bottom:6px;border:1px solid #eee;border-radius:6px}
+summary{padding:10px;font-weight:bold;background:#f8f9fa;cursor:pointer}
+summary::-webkit-details-marker{display:none}
+.child-label{display:flex;align-items:center;font-size:13px;margin:6px 0}
+.dot{width:8px;height:8px;border-radius:50%;margin-right:6px}
+
+#refresh-btn{
+  width:100%;padding:14px;
+  background:var(--primary);color:#fff;
+  border:none;border-radius:8px;
+}
+#loading{font-size:12px;color:#e67e22;text-align:center;display:none}
+
+/* ===== PC ===== */
+@media(min-width:768px){
+  .menu-btn{display:none}
+  .control-panel{transform:none}
+  .search-container{left:320px;transform:none}
+}
+
+/* ===== スマホ ===== */
+@media(max-width:767px){
+  .menu-btn{display:block}
+  .control-panel{
+    top:0;left:0;height:100%;
+    width:85%;max-width:320px;
+    border-radius:0;
+    transform:translateX(-100%);
+  }
+  .control-panel.open{
+    transform:translateX(0);
+  }
+}
+</style>
 </head>
-<body>
 
+<body>
 <div id="map"></div>
 
 <div class="ui-layer">
+  <button id="menu-btn" class="menu-btn">☰</button>
+
   <div class="search-container">
-    <input type="text" id="station-query" placeholder="駅名を入力" inputmode="search">
+    <input id="station-query" placeholder="駅名を入力">
     <button id="search-btn">検索</button>
   </div>
 
   <div class="control-panel">
     <div class="panel-header">
-      <h2>🏠 住みやすさ設定</h2>
-      <div class="theme-selector">
-        <button class="theme-btn" data-theme="light">ライト</button>
-        <button class="theme-btn" data-theme="dark">ダーク</button>
-        <button class="theme-btn active" data-theme="standard">標準</button>
-      </div>
+      <h3>🏠 住みやすさ設定</h3>
     </div>
-    
+
     <div class="panel-content">
       <details open>
-        <summary><input type="checkbox" checked class="parent-check" data-cat="conv"> コンビニ</summary>
-        <div class="child-list">
-          <label class="child-label"><input type="checkbox" checked class="child-check" data-cat="conv" data-key="seven"> <span class="dot" style="background:#2e7d32"></span> セブン</label>
-          <label class="child-label"><input type="checkbox" checked class="child-check" data-cat="conv" data-key="lawson"> <span class="dot" style="background:#1976d2"></span> ローソン</label>
-          <label class="child-label"><input type="checkbox" checked class="child-check" data-cat="conv" data-key="famima"> <span class="dot" style="background:#66bb6a"></span> ファミマ</label>
-        </div>
-      </details>
-      <details>
         <summary><input type="checkbox" checked class="parent-check" data-cat="food"> チェーン店</summary>
-        <div class="child-list">
-          <label class="child-label"><input type="checkbox" checked class="child-check" data-cat="food" data-key="mcd"> <span class="dot" style="background:#d32f2f"></span> マック</label>
-          <label class="child-label"><input type="checkbox" checked class="child-check" data-cat="food" data-key="matsuya"> <span class="dot" style="background:#f57c00"></span> 松屋</label>
-          <label class="child-label"><input type="checkbox" checked class="child-check" data-cat="food" data-key="saizeriya"> <span class="dot" style="background:#bf360c"></span> サイゼリヤ</label>
-        </div>
-      </details>
-      <details>
-        <summary><input type="checkbox" checked class="parent-check" data-cat="life"> 生活</summary>
-        <div class="child-list">
-          <label class="child-label"><input type="checkbox" checked class="child-check" data-cat="life" data-key="muji"> <span class="dot" style="background:#4a148c"></span> 無印良品</label>
-          <label class="child-label"><input type="checkbox" checked class="child-check" data-cat="life" data-key="bookoff"> <span class="dot" style="background:#311b92"></span> ブックオフ</label>
-        </div>
-      </details>
-      <details>
-        <summary><input type="checkbox" checked class="parent-check" data-cat="public"> 公共施設</summary>
-        <div class="child-list">
-          <label class="child-label"><input type="checkbox" checked class="child-check" data-cat="public" data-key="library"> <span class="dot" style="background:#00796b"></span> 図書館</label>
-          <label class="child-label"><input type="checkbox" checked class="child-check" data-cat="public" data-key="park"> <span class="dot" style="background:#4db6ac"></span> 公園</label>
-        </div>
+        <label class="child-label"><input type="checkbox" checked class="child-check" data-key="mcd"> <span class="dot" style="background:#d32f2f"></span> マック</label>
       </details>
     </div>
-    
+
     <div class="panel-footer">
-      <div id="loading">データ取得中...</div>
-      <button id="refresh-btn">エリア内を再検索</button>
+      <div id="loading">取得中...</div>
+      <button id="refresh-btn">エリア内再検索</button>
     </div>
   </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
 <script>
-  const map = L.map('map', { zoomControl: false, tap: false }).setView([35.681236, 139.767125], 15);
-  L.control.zoom({ position: 'bottomright' }).addTo(map);
+const map=L.map("map").setView([35.681,139.767],15);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"©OSM"}).addTo(map);
 
-  const themeURLs = {
-    standard: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-    dark:
+const layers={mcd:L.layerGroup().addTo(map)};
+const config={mcd:{color:"#d32f2f",q:'node["brand"="McDonald\'s"]'}};
+
+document.getElementById("menu-btn").onclick=()=>{
+  document.querySelector(".control-panel").classList.toggle("open");
+};
+
+document.getElementById("search-btn").onclick=async()=>{
+  const q=station-query.value;
+  if(!q)return;
+  const r=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`);
+  const d=await r.json();
+  if(d[0]) map.setView([d[0].lat,d[0].lon],15);
+};
+
+async function searchArea(){
+  Object.values(layers).forEach(l=>l.clearLayers());
+  const b=map.getBounds();
+  const q=`[out:json];${config.mcd.q}(${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()});out;`;
+  const r=await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`);
+  const d=await r.json();
+  d.elements.forEach(e=>{
+    L.circleMarker([e.lat,e.lon],{
+      radius:8,color:config.mcd.color,
+      fillColor:config.mcd.color,fillOpacity:.8
+    }).addTo(layers.mcd);
+  });
+}
+document.getElementById("refresh-btn").onclick=searchArea;
+searchArea();
+</script>
+</body>
+</html>
