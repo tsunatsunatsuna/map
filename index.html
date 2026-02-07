@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <title>住みやすさマップ Pro+ Custom</title>
+  <title>住みやすさマップ Pro+ (Fixed)</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     :root {
@@ -10,8 +10,8 @@
       --bg-panel: rgba(255, 255, 255, 0.98);
       --text-main: #2c3e50;
     }
-    body { margin: 0; font-family: "Helvetica Neue", Arial, sans-serif; overflow: hidden; background: #222; }
-    #map { height: 100vh; width: 100vw; z-index: 1; }
+    body { margin: 0; font-family: "Helvetica Neue", Arial, sans-serif; overflow: hidden; background: #eee; }
+    #map { height: 100vh; width: 100vw; z-index: 1; background: #ddd; } /* 背景をグレーに設定 */
 
     /* 駅検索バー */
     .search-container {
@@ -24,13 +24,13 @@
     }
     #station-query {
       flex: 1; padding: 12px 20px;
-      border-radius: 30px; border: none;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.2); outline: none;
+      border-radius: 30px; border: 1px solid #ccc;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1); outline: none;
     }
     #search-btn {
       padding: 10px 20px; background: var(--primary);
       color: white; border: none; border-radius: 25px;
-      cursor: pointer; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+      cursor: pointer; font-weight: bold;
     }
 
     /* 設定パネル */
@@ -39,19 +39,16 @@
       top: 15px; left: 15px;
       background: var(--bg-panel);
       width: 280px; max-height: 90vh;
-      border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+      border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.15);
       z-index: 1000; display: flex; flex-direction: column;
     }
     .panel-header { padding: 15px 20px; border-bottom: 1px solid #eee; }
     .panel-header h2 { margin: 0 0 10px 0; font-size: 18px; color: var(--text-main); }
     
-    /* マップテーマ切り替え */
-    .theme-selector {
-      display: flex; gap: 5px; margin-bottom: 5px;
-    }
+    .theme-selector { display: flex; gap: 5px; margin-bottom: 5px; }
     .theme-btn {
-      flex: 1; padding: 6px; font-size: 11px; border: 1px solid #ddd;
-      border-radius: 4px; cursor: pointer; background: white;
+      flex: 1; padding: 8px 4px; font-size: 11px; border: 1px solid #ddd;
+      border-radius: 4px; cursor: pointer; background: white; transition: 0.2s;
     }
     .theme-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
 
@@ -64,11 +61,11 @@
       list-style: none; display: flex; align-items: center; font-weight: bold; font-size: 14px;
     }
     summary::-webkit-details-marker { display: none; }
-    summary:hover { background: #f1f3f5; }
+    summary input[type="checkbox"] { margin-right: 10px; }
     
     .child-list { padding: 10px 15px; background: white; border-top: 1px solid #eee; }
-    .child-label { display: flex; align-items: center; font-size: 13px; margin: 6px 0; cursor: pointer; }
-    input[type="checkbox"] { margin-right: 10px; transform: scale(1.1); }
+    .child-label { display: flex; align-items: center; font-size: 13px; margin: 8px 0; cursor: pointer; }
+    input[type="checkbox"] { cursor: pointer; }
     .dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; }
 
     /* 実行ボタン */
@@ -78,7 +75,7 @@
       color: white; border: none; border-radius: 8px;
       cursor: pointer; font-weight: bold; font-size: 14px;
     }
-    #loading { font-size: 12px; color: #e67e22; text-align: center; margin-bottom: 8px; display: none; font-weight: bold; }
+    #loading { font-size: 12px; color: #e67e22; text-align: center; margin-bottom: 8px; display: none; }
   </style>
 </head>
 <body>
@@ -92,9 +89,9 @@
   <div class="panel-header">
     <h2>🏠 住みやすさ設定</h2>
     <div class="theme-selector">
-      <button class="theme-btn active" onclick="changeTheme('light', this)">ライト</button>
-      <button class="theme-btn" onclick="changeTheme('dark', this)">ダーク</button>
-      <button class="theme-btn" onclick="changeTheme('standard', this)">標準</button>
+      <button class="theme-btn" data-theme="light">ライト</button>
+      <button class="theme-btn" data-theme="dark">ダーク</button>
+      <button class="theme-btn active" data-theme="standard">標準</button>
     </div>
   </div>
   
@@ -136,7 +133,7 @@
   
   <div class="panel-footer">
     <div id="loading">データ取得中...</div>
-    <button id="refresh-btn">このエリアを再検索</button>
+    <button id="refresh-btn">エリア内を再検索</button>
   </div>
 </div>
 
@@ -145,83 +142,91 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-  // ① 地図とテーマの設定
-  const themes = {
-    standard: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-  };
-
+  // 1. 地図の初期化 (標準地図を最初に読み込む)
   const map = L.map('map', { zoomControl: false }).setView([35.681236, 139.767125], 15);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
-  
-  let currentTileLayer = L.tileLayer(themes.light).addTo(map);
 
-  function changeTheme(themeKey, btn) {
-    map.removeLayer(currentTileLayer);
-    currentTileLayer = L.tileLayer(themes[themeKey]).addTo(map);
-    document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-  }
+  const themeURLs = {
+    standard: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+    dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+  };
 
-  // ② データ設定
+  let currentLayer = L.tileLayer(themeURLs.standard, {
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+
+  // テーマ切り替えイベント
+  document.querySelectorAll('.theme-btn').forEach(btn => {
+    btn.onclick = (e) => {
+      const themeKey = e.target.dataset.theme;
+      map.removeLayer(currentLayer);
+      currentLayer = L.tileLayer(themeURLs[themeKey], { attribution: '&copy; OpenStreetMap' }).addTo(map);
+      
+      document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+    };
+  });
+
+  // 2. マーカーデータ設定
   const config = {
-    seven:    { color: "#2e7d32", q: 'node["brand:en"="7-Eleven"]' },
-    lawson:   { color: "#1976d2", q: 'node["brand:en"="Lawson"]' },
-    famima:   { color: "#66bb6a", q: 'node["brand:en"="FamilyMart"]' },
-    mcd:      { color: "#d32f2f", q: 'node["brand:en"="McDonald\'s"]' },
-    matsuya:  { color: "#f57c00", q: 'node["brand:en"="Matsuya"]' },
-    saizeriya:{ color: "#bf360c", q: 'node["brand:en"="Saizeriya"]' },
-    muji:     { color: "#4a148c", q: 'node["brand:en"="MUJI"]' },
-    bookoff:  { color: "#311b92", q: 'node["brand:en"="BOOKOFF"]' },
-    library:  { color: "#00796b", q: 'node["amenity"="library"]' },
-    park:     { color: "#4db6ac", q: 'nwr["leisure"="park"]' }
+    seven: { color: "#2e7d32", q: 'node["brand:en"="7-Eleven"]' },
+    lawson: { color: "#1976d2", q: 'node["brand:en"="Lawson"]' },
+    famima: { color: "#66bb6a", q: 'node["brand:en"="FamilyMart"]' },
+    mcd: { color: "#d32f2f", q: 'node["brand:en"="McDonald\'s"]' },
+    matsuya: { color: "#f57c00", q: 'node["brand:en"="Matsuya"]' },
+    saizeriya: { color: "#bf360c", q: 'node["brand:en"="Saizeriya"]' },
+    muji: { color: "#4a148c", q: 'node["brand:en"="MUJI"]' },
+    bookoff: { color: "#311b92", q: 'node["brand:en"="BOOKOFF"]' },
+    library: { color: "#00796b", q: 'node["amenity"="library"]' },
+    park: { color: "#4db6ac", q: 'nwr["leisure"="park"]' }
   };
 
   const layers = {};
   Object.keys(config).forEach(k => layers[k] = L.layerGroup().addTo(map));
 
-  // ③ 検索機能 (Nominatim)
+  // 3. 検索機能
   document.getElementById('search-btn').onclick = async () => {
     const q = document.getElementById('station-query').value;
     if(!q) return;
     try {
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`);
       const data = await res.json();
-      if(data.length > 0) {
+      if(data && data[0]) {
         map.setView([data[0].lat, data[0].lon], 15);
         setTimeout(searchArea, 500);
       } else { alert("見つかりませんでした"); }
     } catch(e) { console.error(e); }
   };
 
-  // ④ 親子チェックボックス連動
+  // 4. チェックボックス連動 (イベント伝搬を止める)
   document.querySelectorAll('.parent-check').forEach(parent => {
-    parent.addEventListener('change', (e) => {
-      e.stopPropagation();
+    parent.onclick = (e) => {
+      e.stopPropagation(); // アコーディオンが閉じないようにする
       const cat = e.target.dataset.cat;
       const children = document.querySelectorAll(`.child-check[data-cat="${cat}"]`);
       children.forEach(c => {
         c.checked = e.target.checked;
-        const key = c.dataset.key;
-        if(c.checked) map.addLayer(layers[key]); else map.removeLayer(layers[key]);
+        if(c.checked) map.addLayer(layers[c.dataset.key]); 
+        else map.removeLayer(layers[c.dataset.key]);
       });
-    });
+    };
   });
 
   document.querySelectorAll('.child-check').forEach(child => {
-    child.addEventListener('change', (e) => {
-      const cat = e.target.dataset.cat;
+    child.onclick = (e) => {
       const key = e.target.dataset.key;
+      const cat = e.target.dataset.cat;
+      if(e.target.checked) map.addLayer(layers[key]); 
+      else map.removeLayer(layers[key]);
+      
       const parent = document.querySelector(`.parent-check[data-cat="${cat}"]`);
       const siblings = document.querySelectorAll(`.child-check[data-cat="${cat}"]`);
-      
-      if(e.target.checked) map.addLayer(layers[key]); else map.removeLayer(layers[key]);
       parent.checked = Array.from(siblings).every(s => s.checked);
-    });
+    };
   });
 
-  // ⑤ Overpass API 検索実行
+  // 5. データ取得
   async function searchArea() {
     const btn = document.getElementById('refresh-btn');
     const loading = document.getElementById('loading');
@@ -244,21 +249,21 @@
         if(!lat || !lon) return;
 
         let key = "";
-        const tags = JSON.stringify(el.tags).toLowerCase();
-        if(tags.includes("7-eleven")) key = "seven";
-        else if(tags.includes("lawson")) key = "lawson";
-        else if(tags.includes("familymart")) key = "famima";
-        else if(tags.includes("mcdonald")) key = "mcd";
-        else if(tags.includes("matsuya")) key = "matsuya";
-        else if(tags.includes("saizeriya")) key = "saizeriya";
-        else if(tags.includes("muji")) key = "muji";
-        else if(tags.includes("bookoff")) key = "bookoff";
+        const t = JSON.stringify(el.tags).toLowerCase();
+        if(t.includes("7-eleven")) key = "seven";
+        else if(t.includes("lawson")) key = "lawson";
+        else if(t.includes("familymart")) key = "famima";
+        else if(t.includes("mcdonald")) key = "mcd";
+        else if(t.includes("matsuya")) key = "matsuya";
+        else if(t.includes("saizeriya")) key = "saizeriya";
+        else if(t.includes("muji")) key = "muji";
+        else if(t.includes("bookoff")) key = "bookoff";
         else if(el.tags.amenity === "library") key = "library";
         else if(el.tags.leisure === "park") key = "park";
 
         if(key) {
           L.circleMarker([lat, lon], {
-            radius: 9, color: config[key].color, fillColor: config[key].color, fillOpacity: 0.8, weight: 2
+            radius: 10, color: config[key].color, fillColor: config[key].color, fillOpacity: 0.8, weight: 2
           }).bindPopup(`<strong>${el.tags.name || key}</strong>`).addTo(layers[key]);
         }
       });
@@ -267,7 +272,7 @@
   }
 
   document.getElementById('refresh-btn').onclick = searchArea;
-  searchArea();
+  searchArea(); // 初回実行
 </script>
 
 </body>
