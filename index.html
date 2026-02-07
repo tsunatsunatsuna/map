@@ -2,153 +2,142 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <title>住みやすさマップ Pro+</title>
+  <title>住みやすさマップ Pro+ Custom</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     :root {
       --primary: #3498db;
       --bg-panel: rgba(255, 255, 255, 0.98);
+      --text-main: #2c3e50;
     }
-    body { margin: 0; font-family: "Helvetica Neue", Arial, sans-serif; overflow: hidden; }
+    body { margin: 0; font-family: "Helvetica Neue", Arial, sans-serif; overflow: hidden; background: #222; }
     #map { height: 100vh; width: 100vw; z-index: 1; }
 
     /* 駅検索バー */
     .search-container {
       position: absolute;
-      top: 10px;
-      left: 50%;
+      top: 15px; left: 50%;
       transform: translateX(-50%);
       z-index: 1100;
-      display: flex;
-      gap: 5px;
-      width: 300px;
+      display: flex; gap: 8px;
+      width: 320px;
     }
     #station-query {
-      flex: 1;
-      padding: 10px 15px;
-      border-radius: 25px;
-      border: 1px solid #ccc;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-      outline: none;
+      flex: 1; padding: 12px 20px;
+      border-radius: 30px; border: none;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2); outline: none;
     }
     #search-btn {
-      padding: 8px 15px;
-      background: var(--primary);
-      color: white;
-      border: none;
-      border-radius: 20px;
-      cursor: pointer;
-      font-weight: bold;
+      padding: 10px 20px; background: var(--primary);
+      color: white; border: none; border-radius: 25px;
+      cursor: pointer; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
     }
 
     /* 設定パネル */
     .control-panel {
       position: absolute;
-      top: 10px;
-      left: 10px;
+      top: 15px; left: 15px;
       background: var(--bg-panel);
-      width: 260px;
-      max-height: 90vh;
-      border-radius: 12px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-      z-index: 1000;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
+      width: 280px; max-height: 90vh;
+      border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+      z-index: 1000; display: flex; flex-direction: column;
     }
-    .panel-header {
-      padding: 15px;
-      background: #f8f9fa;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      cursor: pointer;
-      border-bottom: 1px solid #eee;
-    }
-    .panel-header h2 { margin: 0; font-size: 16px; color: #333; }
+    .panel-header { padding: 15px 20px; border-bottom: 1px solid #eee; }
+    .panel-header h2 { margin: 0 0 10px 0; font-size: 18px; color: var(--text-main); }
     
-    .panel-content { padding: 10px 15px; overflow-y: auto; }
-    .panel-content.collapsed { display: none; }
-
-    /* 階層チェックボックス */
-    .category-group { margin-bottom: 12px; }
-    .parent-label { 
-      display: flex; 
-      align-items: center; 
-      font-weight: bold; 
-      font-size: 14px; 
-      background: #f0f2f5;
-      padding: 5px 8px;
-      border-radius: 4px;
-      margin-bottom: 5px;
+    /* マップテーマ切り替え */
+    .theme-selector {
+      display: flex; gap: 5px; margin-bottom: 5px;
     }
-    .child-list { padding-left: 20px; }
-    .child-label { display: flex; align-items: center; font-size: 13px; margin: 3px 0; cursor: pointer; }
-    input[type="checkbox"] { margin-right: 8px; cursor: pointer; }
+    .theme-btn {
+      flex: 1; padding: 6px; font-size: 11px; border: 1px solid #ddd;
+      border-radius: 4px; cursor: pointer; background: white;
+    }
+    .theme-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
 
-    .dot { height: 8px; width: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .panel-content { padding: 10px 15px; overflow-y: auto; flex-grow: 1; }
+
+    /* アコーディオン設定 */
+    details { margin-bottom: 8px; border: 1px solid #eee; border-radius: 8px; overflow: hidden; }
+    summary { 
+      padding: 10px; background: #f8f9fa; cursor: pointer; 
+      list-style: none; display: flex; align-items: center; font-weight: bold; font-size: 14px;
+    }
+    summary::-webkit-details-marker { display: none; }
+    summary:hover { background: #f1f3f5; }
+    
+    .child-list { padding: 10px 15px; background: white; border-top: 1px solid #eee; }
+    .child-label { display: flex; align-items: center; font-size: 13px; margin: 6px 0; cursor: pointer; }
+    input[type="checkbox"] { margin-right: 10px; transform: scale(1.1); }
+    .dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; }
 
     /* 実行ボタン */
+    .panel-footer { padding: 15px; border-top: 1px solid #eee; }
     #refresh-btn {
-      width: calc(100% - 30px); margin: 10px 15px 15px;
-      padding: 12px; background: var(--primary); color: white;
-      border: none; border-radius: 6px; cursor: pointer; font-weight: bold;
+      width: 100%; padding: 14px; background: var(--primary);
+      color: white; border: none; border-radius: 8px;
+      cursor: pointer; font-weight: bold; font-size: 14px;
     }
-    #refresh-btn:disabled { background: #bdc3c7; }
-    #loading { font-size: 12px; color: #e67e22; text-align: center; margin-bottom: 10px; display: none; }
+    #loading { font-size: 12px; color: #e67e22; text-align: center; margin-bottom: 8px; display: none; font-weight: bold; }
   </style>
 </head>
 <body>
 
 <div class="search-container">
-  <input type="text" id="station-query" placeholder="駅名を入力（例：新宿駅）">
+  <input type="text" id="station-query" placeholder="駅名や地名を入力">
   <button id="search-btn">検索</button>
 </div>
 
 <div class="control-panel">
-  <div class="panel-header" onclick="togglePanel()">
+  <div class="panel-header">
     <h2>🏠 住みやすさ設定</h2>
-    <span id="toggle-icon">▼</span>
+    <div class="theme-selector">
+      <button class="theme-btn active" onclick="changeTheme('light', this)">ライト</button>
+      <button class="theme-btn" onclick="changeTheme('dark', this)">ダーク</button>
+      <button class="theme-btn" onclick="changeTheme('standard', this)">標準</button>
+    </div>
   </div>
   
-  <div class="panel-content" id="panel-content">
-    <div class="category-group">
-      <label class="parent-label"><input type="checkbox" checked class="parent-check" data-cat="conv"> コンビニ</label>
+  <div class="panel-content">
+    <details open>
+      <summary><input type="checkbox" checked class="parent-check" data-cat="conv"> コンビニ</summary>
       <div class="child-list">
         <label class="child-label"><input type="checkbox" checked class="child-check" data-cat="conv" data-key="seven"> <span class="dot" style="background:#2e7d32"></span> セブン</label>
         <label class="child-label"><input type="checkbox" checked class="child-check" data-cat="conv" data-key="lawson"> <span class="dot" style="background:#1976d2"></span> ローソン</label>
         <label class="child-label"><input type="checkbox" checked class="child-check" data-cat="conv" data-key="famima"> <span class="dot" style="background:#66bb6a"></span> ファミマ</label>
       </div>
-    </div>
+    </details>
 
-    <div class="category-group">
-      <label class="parent-label"><input type="checkbox" checked class="parent-check" data-cat="food"> チェーン店</label>
+    <details>
+      <summary><input type="checkbox" checked class="parent-check" data-cat="food"> チェーン店</summary>
       <div class="child-list">
         <label class="child-label"><input type="checkbox" checked class="child-check" data-cat="food" data-key="mcd"> <span class="dot" style="background:#d32f2f"></span> マック</label>
         <label class="child-label"><input type="checkbox" checked class="child-check" data-cat="food" data-key="matsuya"> <span class="dot" style="background:#f57c00"></span> 松屋</label>
         <label class="child-label"><input type="checkbox" checked class="child-check" data-cat="food" data-key="saizeriya"> <span class="dot" style="background:#bf360c"></span> サイゼリヤ</label>
       </div>
-    </div>
+    </details>
 
-    <div class="category-group">
-      <label class="parent-label"><input type="checkbox" checked class="parent-check" data-cat="life"> 生活</label>
+    <details>
+      <summary><input type="checkbox" checked class="parent-check" data-cat="life"> 生活</summary>
       <div class="child-list">
         <label class="child-label"><input type="checkbox" checked class="child-check" data-cat="life" data-key="muji"> <span class="dot" style="background:#4a148c"></span> 無印良品</label>
         <label class="child-label"><input type="checkbox" checked class="child-check" data-cat="life" data-key="bookoff"> <span class="dot" style="background:#311b92"></span> ブックオフ</label>
       </div>
-    </div>
+    </details>
 
-    <div class="category-group">
-      <label class="parent-label"><input type="checkbox" checked class="parent-check" data-cat="public"> 公共施設</label>
+    <details>
+      <summary><input type="checkbox" checked class="parent-check" data-cat="public"> 公共施設</summary>
       <div class="child-list">
         <label class="child-label"><input type="checkbox" checked class="child-check" data-cat="public" data-key="library"> <span class="dot" style="background:#00796b"></span> 図書館</label>
         <label class="child-label"><input type="checkbox" checked class="child-check" data-cat="public" data-key="park"> <span class="dot" style="background:#4db6ac"></span> 公園</label>
       </div>
-    </div>
+    </details>
   </div>
   
-  <div id="loading">データ取得中...</div>
-  <button id="refresh-btn">このエリアを再検索</button>
+  <div class="panel-footer">
+    <div id="loading">データ取得中...</div>
+    <button id="refresh-btn">このエリアを再検索</button>
+  </div>
 </div>
 
 <div id="map"></div>
@@ -156,126 +145,28 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-  // ① 初期化
+  // ① 地図とテーマの設定
+  const themes = {
+    standard: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+  };
+
   const map = L.map('map', { zoomControl: false }).setView([35.681236, 139.767125], 15);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+  
+  let currentTileLayer = L.tileLayer(themes.light).addTo(map);
 
+  function changeTheme(themeKey, btn) {
+    map.removeLayer(currentTileLayer);
+    currentTileLayer = L.tileLayer(themes[themeKey]).addTo(map);
+    document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+
+  // ② データ設定
   const config = {
     seven:    { color: "#2e7d32", q: 'node["brand:en"="7-Eleven"]' },
     lawson:   { color: "#1976d2", q: 'node["brand:en"="Lawson"]' },
     famima:   { color: "#66bb6a", q: 'node["brand:en"="FamilyMart"]' },
-    mcd:      { color: "#d32f2f", q: 'node["brand:en"="McDonald\'s"]' },
-    matsuya:  { color: "#f57c00", q: 'node["brand:en"="Matsuya"]' },
-    saizeriya:{ color: "#bf360c", q: 'node["brand:en"="Saizeriya"]' },
-    muji:     { color: "#4a148c", q: 'node["brand:en"="MUJI"]' },
-    bookoff:  { color: "#311b92", q: 'node["brand:en"="BOOKOFF"]' },
-    library:  { color: "#00796b", q: 'node["amenity"="library"]' },
-    park:     { color: "#4db6ac", q: 'nwr["leisure"="park"]' }
-  };
-
-  const layers = {};
-  Object.keys(config).forEach(k => layers[k] = L.layerGroup().addTo(map));
-
-  // ② 検索機能 (Nominatim API)
-  document.getElementById('search-btn').onclick = async () => {
-    const q = document.getElementById('station-query').value;
-    if(!q) return;
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`);
-      const data = await res.json();
-      if(data.length > 0) {
-        map.setView([data[0].lat, data[0].lon], 15);
-        setTimeout(searchArea, 500); // 移動後に自動検索
-      } else { alert("駅が見つかりませんでした"); }
-    } catch(e) { console.error(e); }
-  };
-
-  // ③ 階層チェックボックスのロジック
-  document.querySelectorAll('.parent-check').forEach(parent => {
-    parent.addEventListener('change', (e) => {
-      const cat = e.target.dataset.cat;
-      const children = document.querySelectorAll(`.child-check[data-cat="${cat}"]`);
-      children.forEach(c => {
-        c.checked = e.target.checked;
-        const key = c.dataset.key;
-        if(c.checked) map.addLayer(layers[key]); else map.removeLayer(layers[key]);
-      });
-    });
-  });
-
-  document.querySelectorAll('.child-check').forEach(child => {
-    child.addEventListener('change', (e) => {
-      const cat = e.target.dataset.cat;
-      const key = e.target.dataset.key;
-      const parent = document.querySelector(`.parent-check[data-cat="${cat}"]`);
-      const siblings = document.querySelectorAll(`.child-check[data-cat="${cat}"]`);
-      
-      // レイヤーの出し入れ
-      if(e.target.checked) map.addLayer(layers[key]); else map.removeLayer(layers[key]);
-      
-      // 親のチェック状態を更新
-      const allChecked = Array.from(siblings).every(s => s.checked);
-      parent.checked = allChecked;
-    });
-  });
-
-  // ④ パネル開閉
-  function togglePanel() {
-    const content = document.getElementById('panel-content');
-    const icon = document.getElementById('toggle-icon');
-    content.classList.toggle('collapsed');
-    icon.innerText = content.classList.contains('collapsed') ? '▲' : '▼';
-  }
-
-  // ⑤ 検索ロジック
-  async function searchArea() {
-    const btn = document.getElementById('refresh-btn');
-    const loading = document.getElementById('loading');
-    btn.disabled = true; loading.style.display = 'block';
-    
-    Object.values(layers).forEach(l => l.clearLayers());
-    const b = map.getBounds();
-    const bbox = `${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
-
-    let fullQuery = `[out:json][timeout:30];(`;
-    Object.keys(config).forEach(k => fullQuery += `${config[k].q}(${bbox});`);
-    fullQuery += `); out center;`;
-
-    try {
-      const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(fullQuery)}`);
-      const data = await res.json();
-      data.elements.forEach(el => {
-        const lat = el.lat || (el.center && el.center.lat);
-        const lon = el.lon || (el.center && el.center.lon);
-        if(!lat || !lon) return;
-
-        let key = "";
-        const tags = JSON.stringify(el.tags).toLowerCase();
-        if(tags.includes("7-eleven")) key = "seven";
-        else if(tags.includes("lawson")) key = "lawson";
-        else if(tags.includes("familymart")) key = "famima";
-        else if(tags.includes("mcdonald")) key = "mcd";
-        else if(tags.includes("matsuya")) key = "matsuya";
-        else if(tags.includes("saizeriya")) key = "saizeriya";
-        else if(tags.includes("muji")) key = "muji";
-        else if(tags.includes("bookoff")) key = "bookoff";
-        else if(el.tags.amenity === "library") key = "library";
-        else if(el.tags.leisure === "park") key = "park";
-
-        if(key) {
-          L.circleMarker([lat, lon], {
-            radius: 9, color: config[key].color, fillColor: config[key].color, fillOpacity: 0.8, weight: 2
-          }).bindPopup(`<strong>${el.tags.name || key}</strong>`).addTo(layers[key]);
-        }
-      });
-    } catch(e) { console.error(e); }
-    btn.disabled = false; loading.style.display = 'none';
-  }
-
-  document.getElementById('refresh-btn').onclick = searchArea;
-  searchArea();
-</script>
-
-</body>
-</html>
+    mcd:      { color: "#d32f2f",
