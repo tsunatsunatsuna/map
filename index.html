@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <title>住みやすさマップ Stable Pro</title>
+  <title>住みやすさマップ Stable Pro+</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
@@ -167,19 +167,19 @@
     };
   });
 
-  // ユニクロ検索を nwr (Node/Way/Relation) かつ正規表現 ~"ユニクロ|UNIQLO",i に強化
+  // クエリを大幅強化: brandタグだけでなくnameタグも検索し、大型店舗(way)も網羅する。
   const config = {
-    seven: { color: "#2e7d32", q: 'nwr["brand"~"7-Eleven|セブン",i]' },
-    lawson: { color: "#1976d2", q: 'nwr["brand"~"Lawson|ローソン",i]' },
-    famima: { color: "#66bb6a", q: 'nwr["brand"~"FamilyMart|ファミマ",i]' },
-    mcd: { color: "#d32f2f", q: 'nwr["brand"~"McDonald|マクドナルド",i]' },
-    matsuya: { color: "#f57c00", q: 'nwr["brand"~"Matsuya|松屋",i]' },
-    saizeriya: { color: "#bf360c", q: 'nwr["brand"~"Saizeriya|サイゼリヤ",i]' },
-    muji: { color: "#4a148c", q: 'nwr["brand"~"MUJI|無印良品",i]' },
-    uniqlo: { color: "#ff0000", q: 'nwr["brand"~"Uniqlo|ユニクロ",i]' },
-    bookoff: { color: "#311b92", q: 'nwr["brand"~"BOOKOFF|ブックオフ",i]' },
-    library: { color: "#00796b", q: 'nwr["amenity"="library"]' },
-    park: { color: "#4db6ac", q: 'nwr["leisure"="park"]' }
+    seven: { color: "#2e7d32", q: 'nwr["brand"~"7-Eleven|セブン",i]({{bbox}});nwr["name"~"セブン",i]({{bbox}})' },
+    lawson: { color: "#1976d2", q: 'nwr["brand"~"Lawson|ローソン",i]({{bbox}});nwr["name"~"ローソン",i]({{bbox}})' },
+    famima: { color: "#66bb6a", q: 'nwr["brand"~"FamilyMart|ファミマ",i]({{bbox}});nwr["name"~"ファミリーマート",i]({{bbox}})' },
+    mcd: { color: "#d32f2f", q: 'nwr["brand"~"McDonald|マクドナルド",i]({{bbox}});nwr["name"~"マクドナルド",i]({{bbox}})' },
+    matsuya: { color: "#f57c00", q: 'nwr["brand"~"Matsuya|松屋",i]({{bbox}});nwr["name"~"松屋",i]({{bbox}})' },
+    saizeriya: { color: "#bf360c", q: 'nwr["brand"~"Saizeriya|サイゼリヤ",i]({{bbox}});nwr["name"~"サイゼリヤ",i]({{bbox}})' },
+    muji: { color: "#4a148c", q: 'nwr["brand"~"MUJI|無印良品",i]({{bbox}});nwr["name"~"無印良品",i]({{bbox}})' },
+    uniqlo: { color: "#ff0000", q: 'nwr["brand"~"Uniqlo|ユニクロ",i]({{bbox}});nwr["name"~"ユニクロ",i]({{bbox}})' },
+    bookoff: { color: "#311b92", q: 'nwr["brand"~"BOOKOFF|ブックオフ",i]({{bbox}});nwr["name"~"ブックオフ",i]({{bbox}})' },
+    library: { color: "#00796b", q: 'nwr["amenity"="library"]({{bbox}})' },
+    park: { color: "#4db6ac", q: 'nwr["leisure"="park"]({{bbox}})' }
   };
   const layers = {};
   Object.keys(config).forEach(k => layers[k] = L.layerGroup());
@@ -231,9 +231,15 @@
     Object.values(layers).forEach(l => l.clearLayers());
     const b = map.getBounds();
     const bbox = `${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
+    
+    // クエリを組み立てる際、{{bbox}} プレースホルダを実際の値に置換
     let q = `[out:json][timeout:30];(`;
-    Object.keys(config).forEach(k => q += `${config[k].q}(${bbox});`);
+    Object.keys(config).forEach(k => {
+      let subQ = config[k].q.replace(/\{\{bbox\}\}/g, bbox);
+      q += subQ + ";";
+    });
     q += `); out center;`;
+
     try {
       const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`);
       const data = await res.json();
@@ -241,19 +247,22 @@
         const lat = el.lat || (el.center && el.center.lat);
         const lon = el.lon || (el.center && el.center.lon);
         if(!lat || !lon) return;
+        
         let key = "";
         const tags = el.tags || {};
-        const tagText = JSON.stringify(tags).toLowerCase();
+        const brandName = (tags.brand || "").toLowerCase();
+        const officialName = (tags.name || "").toLowerCase();
         
-        if(tagText.includes("7-eleven") || tagText.includes("セブン")) key = "seven";
-        else if(tagText.includes("lawson") || tagText.includes("ローソン")) key = "lawson";
-        else if(tagText.includes("familymart") || tagText.includes("ファミマ")) key = "famima";
-        else if(tagText.includes("mcdonald") || tagText.includes("マクドナルド")) key = "mcd";
-        else if(tagText.includes("matsuya") || tagText.includes("松屋")) key = "matsuya";
-        else if(tagText.includes("saizeriya") || tagText.includes("サイゼリヤ")) key = "saizeriya";
-        else if(tagText.includes("muji") || tagText.includes("無印良品")) key = "muji";
-        else if(tagText.includes("uniqlo") || tagText.includes("ユニクロ")) key = "uniqlo";
-        else if(tagText.includes("bookoff") || tagText.includes("ブックオフ")) key = "bookoff";
+        // ヒット判定ロジック
+        if(brandName.includes("7-eleven") || officialName.includes("セブン")) key = "seven";
+        else if(brandName.includes("lawson") || officialName.includes("ローソン")) key = "lawson";
+        else if(brandName.includes("familymart") || officialName.includes("ファミマ") || officialName.includes("ファミリーマート")) key = "famima";
+        else if(brandName.includes("mcdonald") || officialName.includes("マクドナルド")) key = "mcd";
+        else if(brandName.includes("matsuya") || officialName.includes("松屋")) key = "matsuya";
+        else if(brandName.includes("saizeriya") || officialName.includes("サイゼリヤ")) key = "saizeriya";
+        else if(brandName.includes("muji") || officialName.includes("無印良品")) key = "muji";
+        else if(brandName.includes("uniqlo") || officialName.includes("ユニクロ")) key = "uniqlo";
+        else if(brandName.includes("bookoff") || officialName.includes("ブックオフ")) key = "bookoff";
         else if(tags.amenity === "library") key = "library";
         else if(tags.leisure === "park") key = "park";
 
@@ -261,7 +270,7 @@
           L.circleMarker([lat, lon], { radius: 10, color: config[key].color, fillColor: config[key].color, fillOpacity: 0.8, weight: 2 }).bindPopup(tags.name || key).addTo(layers[key]);
         }
       });
-    } catch(e) {}
+    } catch(e) { console.error("Search Error:", e); }
     btn.disabled = false; loading.style.display = 'none';
   }
 
