@@ -2,7 +2,8 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <title>住みやすさマップ Pro+ (Fixed)</title>
+  <title>住みやすさマップ Pro+ (Stable)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     :root {
@@ -10,78 +11,83 @@
       --bg-panel: rgba(255, 255, 255, 0.98);
       --text-main: #2c3e50;
     }
-    body { margin: 0; font-family: "Helvetica Neue", Arial, sans-serif; overflow: hidden; background: #eee; }
-    #map { height: 100vh; width: 100vw; z-index: 1; background: #ddd; } /* 背景をグレーに設定 */
+    body { margin: 0; font-family: "Helvetica Neue", Arial, sans-serif; overflow: hidden; background: #333; }
+    #map { height: 100vh; width: 100vw; z-index: 1; background: #222; }
 
-    /* 駅検索バー */
+    /* 駅検索バー - iOSズーム防止のためfont-size: 16px以上 */
     .search-container {
       position: absolute;
       top: 15px; left: 50%;
       transform: translateX(-50%);
       z-index: 1100;
       display: flex; gap: 8px;
-      width: 320px;
+      width: 90%; max-width: 320px;
     }
     #station-query {
-      flex: 1; padding: 12px 20px;
+      flex: 1; padding: 12px 15px;
       border-radius: 30px; border: 1px solid #ccc;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.1); outline: none;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2); outline: none;
+      font-size: 16px; /* iOS Safariの自動ズーム防止 */
+      background: white;
     }
     #search-btn {
-      padding: 10px 20px; background: var(--primary);
+      padding: 10px 18px; background: var(--primary);
       color: white; border: none; border-radius: 25px;
-      cursor: pointer; font-weight: bold;
+      cursor: pointer; font-weight: bold; font-size: 14px;
     }
 
     /* 設定パネル */
     .control-panel {
       position: absolute;
-      top: 15px; left: 15px;
+      top: 80px; left: 10px; /* 検索バーと被らないよう少し下に配置 */
       background: var(--bg-panel);
-      width: 280px; max-height: 90vh;
-      border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+      width: 260px; max-height: 75vh;
+      border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
       z-index: 1000; display: flex; flex-direction: column;
     }
-    .panel-header { padding: 15px 20px; border-bottom: 1px solid #eee; }
-    .panel-header h2 { margin: 0 0 10px 0; font-size: 18px; color: var(--text-main); }
     
-    .theme-selector { display: flex; gap: 5px; margin-bottom: 5px; }
+    @media (min-width: 600px) {
+      .control-panel { top: 15px; left: 15px; width: 280px; }
+      .search-container { top: 15px; left: 310px; transform: none; width: 300px; }
+    }
+
+    .panel-header { padding: 12px 15px; border-bottom: 1px solid #eee; }
+    .panel-header h2 { margin: 0 0 8px 0; font-size: 16px; color: var(--text-main); }
+    
+    .theme-selector { display: flex; gap: 4px; }
     .theme-btn {
-      flex: 1; padding: 8px 4px; font-size: 11px; border: 1px solid #ddd;
-      border-radius: 4px; cursor: pointer; background: white; transition: 0.2s;
+      flex: 1; padding: 6px 2px; font-size: 10px; border: 1px solid #ddd;
+      border-radius: 4px; cursor: pointer; background: white;
     }
     .theme-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
 
-    .panel-content { padding: 10px 15px; overflow-y: auto; flex-grow: 1; }
+    .panel-content { padding: 10px; overflow-y: auto; flex-grow: 1; }
 
-    /* アコーディオン設定 */
-    details { margin-bottom: 8px; border: 1px solid #eee; border-radius: 8px; overflow: hidden; }
+    /* アコーディオン */
+    details { margin-bottom: 5px; border: 1px solid #eee; border-radius: 6px; }
     summary { 
-      padding: 10px; background: #f8f9fa; cursor: pointer; 
-      list-style: none; display: flex; align-items: center; font-weight: bold; font-size: 14px;
+      padding: 8px 10px; background: #f8f9fa; cursor: pointer; 
+      display: flex; align-items: center; font-weight: bold; font-size: 13px;
     }
-    summary::-webkit-details-marker { display: none; }
-    summary input[type="checkbox"] { margin-right: 10px; }
+    summary input[type="checkbox"] { margin-right: 8px; transform: scale(1.1); }
     
-    .child-list { padding: 10px 15px; background: white; border-top: 1px solid #eee; }
-    .child-label { display: flex; align-items: center; font-size: 13px; margin: 8px 0; cursor: pointer; }
-    input[type="checkbox"] { cursor: pointer; }
-    .dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+    .child-list { padding: 8px 10px; background: white; border-top: 1px solid #eee; }
+    .child-label { display: flex; align-items: center; font-size: 12px; margin: 6px 0; cursor: pointer; }
+    .dot { height: 8px; width: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; }
 
-    /* 実行ボタン */
-    .panel-footer { padding: 15px; border-top: 1px solid #eee; }
+    .panel-footer { padding: 10px; border-top: 1px solid #eee; }
     #refresh-btn {
-      width: 100%; padding: 14px; background: var(--primary);
-      color: white; border: none; border-radius: 8px;
+      width: 100%; padding: 12px; background: var(--primary);
+      color: white; border: none; border-radius: 6px;
       cursor: pointer; font-weight: bold; font-size: 14px;
     }
-    #loading { font-size: 12px; color: #e67e22; text-align: center; margin-bottom: 8px; display: none; }
+    #loading { font-size: 11px; color: #e67e22; text-align: center; margin-bottom: 5px; display: none; }
   </style>
 </head>
 <body>
 
 <div class="search-container">
-  <input type="text" id="station-query" placeholder="駅名や地名を入力">
+  <input type="text" id="station-query" placeholder="駅名を入力">
   <button id="search-btn">検索</button>
 </div>
 
@@ -142,33 +148,35 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-  // 1. 地図の初期化 (標準地図を最初に読み込む)
   const map = L.map('map', { zoomControl: false }).setView([35.681236, 139.767125], 15);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
 
+  // タイルサーバーURLを安定性の高いものに変更
   const themeURLs = {
     standard: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-    dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+    light: 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png',
+    dark: 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png'
   };
 
   let currentLayer = L.tileLayer(themeURLs.standard, {
     attribution: '&copy; OpenStreetMap'
   }).addTo(map);
 
-  // テーマ切り替えイベント
+  // テーマ切り替え
   document.querySelectorAll('.theme-btn').forEach(btn => {
-    btn.onclick = (e) => {
-      const themeKey = e.target.dataset.theme;
+    btn.addEventListener('click', (e) => {
+      const themeKey = e.currentTarget.dataset.theme;
       map.removeLayer(currentLayer);
-      currentLayer = L.tileLayer(themeURLs[themeKey], { attribution: '&copy; OpenStreetMap' }).addTo(map);
+      currentLayer = L.tileLayer(themeURLs[themeKey], { 
+        attribution: '&copy; CartoDB &copy; OSM',
+        subdomains: 'abcd' 
+      }).addTo(map);
       
       document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
-      e.target.classList.add('active');
-    };
+      e.currentTarget.classList.add('active');
+    });
   });
 
-  // 2. マーカーデータ設定
   const config = {
     seven: { color: "#2e7d32", q: 'node["brand:en"="7-Eleven"]' },
     lawson: { color: "#1976d2", q: 'node["brand:en"="Lawson"]' },
@@ -185,7 +193,7 @@
   const layers = {};
   Object.keys(config).forEach(k => layers[k] = L.layerGroup().addTo(map));
 
-  // 3. 検索機能
+  // 検索機能
   document.getElementById('search-btn').onclick = async () => {
     const q = document.getElementById('station-query').value;
     if(!q) return;
@@ -194,21 +202,20 @@
       const data = await res.json();
       if(data && data[0]) {
         map.setView([data[0].lat, data[0].lon], 15);
-        setTimeout(searchArea, 500);
+        setTimeout(searchArea, 600);
       } else { alert("見つかりませんでした"); }
     } catch(e) { console.error(e); }
   };
 
-  // 4. チェックボックス連動 (イベント伝搬を止める)
+  // チェックボックス連動
   document.querySelectorAll('.parent-check').forEach(parent => {
     parent.onclick = (e) => {
-      e.stopPropagation(); // アコーディオンが閉じないようにする
+      e.stopPropagation();
       const cat = e.target.dataset.cat;
       const children = document.querySelectorAll(`.child-check[data-cat="${cat}"]`);
       children.forEach(c => {
         c.checked = e.target.checked;
-        if(c.checked) map.addLayer(layers[c.dataset.key]); 
-        else map.removeLayer(layers[c.dataset.key]);
+        if(c.checked) map.addLayer(layers[c.dataset.key]); else map.removeLayer(layers[c.dataset.key]);
       });
     };
   });
@@ -217,16 +224,13 @@
     child.onclick = (e) => {
       const key = e.target.dataset.key;
       const cat = e.target.dataset.cat;
-      if(e.target.checked) map.addLayer(layers[key]); 
-      else map.removeLayer(layers[key]);
-      
+      if(e.target.checked) map.addLayer(layers[key]); else map.removeLayer(layers[key]);
       const parent = document.querySelector(`.parent-check[data-cat="${cat}"]`);
       const siblings = document.querySelectorAll(`.child-check[data-cat="${cat}"]`);
       parent.checked = Array.from(siblings).every(s => s.checked);
     };
   });
 
-  // 5. データ取得
   async function searchArea() {
     const btn = document.getElementById('refresh-btn');
     const loading = document.getElementById('loading');
@@ -263,7 +267,7 @@
 
         if(key) {
           L.circleMarker([lat, lon], {
-            radius: 10, color: config[key].color, fillColor: config[key].color, fillOpacity: 0.8, weight: 2
+            radius: 9, color: config[key].color, fillColor: config[key].color, fillOpacity: 0.8, weight: 2
           }).bindPopup(`<strong>${el.tags.name || key}</strong>`).addTo(layers[key]);
         }
       });
@@ -272,7 +276,7 @@
   }
 
   document.getElementById('refresh-btn').onclick = searchArea;
-  searchArea(); // 初回実行
+  searchArea();
 </script>
 
 </body>
