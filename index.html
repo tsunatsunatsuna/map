@@ -169,4 +169,106 @@
     seven:    { color: "#2e7d32", q: 'node["brand:en"="7-Eleven"]' },
     lawson:   { color: "#1976d2", q: 'node["brand:en"="Lawson"]' },
     famima:   { color: "#66bb6a", q: 'node["brand:en"="FamilyMart"]' },
-    mcd:      { color: "#d32f2f",
+    mcd:      { color: "#d32f2f", q: 'node["brand:en"="McDonald\'s"]' },
+    matsuya:  { color: "#f57c00", q: 'node["brand:en"="Matsuya"]' },
+    saizeriya:{ color: "#bf360c", q: 'node["brand:en"="Saizeriya"]' },
+    muji:     { color: "#4a148c", q: 'node["brand:en"="MUJI"]' },
+    bookoff:  { color: "#311b92", q: 'node["brand:en"="BOOKOFF"]' },
+    library:  { color: "#00796b", q: 'node["amenity"="library"]' },
+    park:     { color: "#4db6ac", q: 'nwr["leisure"="park"]' }
+  };
+
+  const layers = {};
+  Object.keys(config).forEach(k => layers[k] = L.layerGroup().addTo(map));
+
+  // ③ 検索機能 (Nominatim)
+  document.getElementById('search-btn').onclick = async () => {
+    const q = document.getElementById('station-query').value;
+    if(!q) return;
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      if(data.length > 0) {
+        map.setView([data[0].lat, data[0].lon], 15);
+        setTimeout(searchArea, 500);
+      } else { alert("見つかりませんでした"); }
+    } catch(e) { console.error(e); }
+  };
+
+  // ④ 親子チェックボックス連動
+  document.querySelectorAll('.parent-check').forEach(parent => {
+    parent.addEventListener('change', (e) => {
+      e.stopPropagation();
+      const cat = e.target.dataset.cat;
+      const children = document.querySelectorAll(`.child-check[data-cat="${cat}"]`);
+      children.forEach(c => {
+        c.checked = e.target.checked;
+        const key = c.dataset.key;
+        if(c.checked) map.addLayer(layers[key]); else map.removeLayer(layers[key]);
+      });
+    });
+  });
+
+  document.querySelectorAll('.child-check').forEach(child => {
+    child.addEventListener('change', (e) => {
+      const cat = e.target.dataset.cat;
+      const key = e.target.dataset.key;
+      const parent = document.querySelector(`.parent-check[data-cat="${cat}"]`);
+      const siblings = document.querySelectorAll(`.child-check[data-cat="${cat}"]`);
+      
+      if(e.target.checked) map.addLayer(layers[key]); else map.removeLayer(layers[key]);
+      parent.checked = Array.from(siblings).every(s => s.checked);
+    });
+  });
+
+  // ⑤ Overpass API 検索実行
+  async function searchArea() {
+    const btn = document.getElementById('refresh-btn');
+    const loading = document.getElementById('loading');
+    btn.disabled = true; loading.style.display = 'block';
+    
+    Object.values(layers).forEach(l => l.clearLayers());
+    const b = map.getBounds();
+    const bbox = `${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
+
+    let fullQuery = `[out:json][timeout:30];(`;
+    Object.keys(config).forEach(k => fullQuery += `${config[k].q}(${bbox});`);
+    fullQuery += `); out center;`;
+
+    try {
+      const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(fullQuery)}`);
+      const data = await res.json();
+      data.elements.forEach(el => {
+        const lat = el.lat || (el.center && el.center.lat);
+        const lon = el.lon || (el.center && el.center.lon);
+        if(!lat || !lon) return;
+
+        let key = "";
+        const tags = JSON.stringify(el.tags).toLowerCase();
+        if(tags.includes("7-eleven")) key = "seven";
+        else if(tags.includes("lawson")) key = "lawson";
+        else if(tags.includes("familymart")) key = "famima";
+        else if(tags.includes("mcdonald")) key = "mcd";
+        else if(tags.includes("matsuya")) key = "matsuya";
+        else if(tags.includes("saizeriya")) key = "saizeriya";
+        else if(tags.includes("muji")) key = "muji";
+        else if(tags.includes("bookoff")) key = "bookoff";
+        else if(el.tags.amenity === "library") key = "library";
+        else if(el.tags.leisure === "park") key = "park";
+
+        if(key) {
+          L.circleMarker([lat, lon], {
+            radius: 9, color: config[key].color, fillColor: config[key].color, fillOpacity: 0.8, weight: 2
+          }).bindPopup(`<strong>${el.tags.name || key}</strong>`).addTo(layers[key]);
+        }
+      });
+    } catch(e) { console.error(e); }
+    btn.disabled = false; loading.style.display = 'none';
+  }
+
+  document.getElementById('refresh-btn').onclick = searchArea;
+  searchArea();
+</script>
+
+</body>
+</html>
